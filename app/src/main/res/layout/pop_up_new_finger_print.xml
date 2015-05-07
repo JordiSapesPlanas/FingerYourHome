@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/pop_up_element"
+    android:background="#ff111111">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView"
+        android:layout_gravity="center_horizontal"
+        android:textSize="15dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter fingerprint name"
+        android:id="@+id/tv_name_fp"
+        android:layout_gravity="center_horizontal"
+        android:textSize="20dp"
+        android:textColor="#ffffffff" />
+
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="textPersonName"
+        android:text="Name"
+        android:ems="10"
+        android:id="@+id/ed_name"
+        android:layout_gravity="center_horizontal"
+        android:textColor="#ffffffff" />
+
+
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+            android:layout_height="73dp">
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Accept"
+            android:id="@+id/btn_accept"
+            android:background="#ff0064ff"
+            android:textColor="#ffffffff"
+            android:layout_gravity="right"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginRight="25dp"
+            android:layout_marginEnd="25dp" />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancel"
+            android:id="@+id/btn_cancel"
+            android:background="#ffffffff"
+            android:layout_gravity="center_horizontal"
+            android:layout_alignParentTop="true"
+            android:layout_toLeftOf="@+id/btn_accept"
+            android:layout_toStartOf="@+id/btn_accept"
+            android:layout_marginRight="26dp"
+            android:layout_marginEnd="26dp" />
+
+    </RelativeLayout>
+
+</LinearLayout>

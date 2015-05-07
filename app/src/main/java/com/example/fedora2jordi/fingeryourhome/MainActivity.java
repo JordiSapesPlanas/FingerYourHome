@@ -1,22 +1,19 @@
 package com.example.fedora2jordi.fingeryourhome;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Locale;
 
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.Message;
-import android.support.annotation.Nullable;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.ActionBar;
 import android.support.v4.app.Fragment;
@@ -26,6 +23,7 @@ import android.support.v4.app.FragmentPagerAdapter;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,6 +31,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.PopupWindow;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import org.json.JSONException;
@@ -194,6 +194,11 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
         EditText ed_port;
         Handler handler;
         HttpThread httpThread;
+        Switch sw_scan;
+        Switch sw_notifications;
+        PopupWindow popupWindow;
+        EditText ed_name;
+
 
         private static final String ARG_SECTION_NUMBER = "section_number";
 
@@ -231,11 +236,11 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
                 case 1:
                     rootView = inflater.inflate(R.layout.fragment_options, container, false);
                     btn_new = (Button) rootView.findViewById(R.id.btn_new_scan);
-                    btn_disable = (Button) rootView.findViewById(R.id.btn_scan_of);
-                    btn_enable = (Button) rootView.findViewById(R.id.btn_scan_on);
+                    sw_notifications = (Switch)rootView.findViewById(R.id.btn_notifications);
+                    sw_scan = (Switch)rootView.findViewById(R.id.btn_scan);
+                    sw_notifications.setOnClickListener(this);
+                    sw_scan.setOnClickListener(this);
                     btn_new.setOnClickListener(this);
-                    btn_enable.setOnClickListener(this);
-                    btn_disable.setOnClickListener(this);
                     break;
                 case 3:
                     rootView = inflater.inflate(R.layout.fragment_advanced_options, container, false);
@@ -268,26 +273,32 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
             ConnectivityManager cnManager = (ConnectivityManager)getActivity()
                     .getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo networkInfo = cnManager.getActiveNetworkInfo();
-
+            SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = preferences.edit();
             if(networkInfo != null && networkInfo.isConnected())
+
 
                 switch (view.getId()){
                     case R.id.btn_new_scan:
-                                                httpThread = new HttpThread("POST", "fingerprint", null);
-                        httpThread.start();
+
+
+                        popUp();
+
+
                         break;
-                    case R.id.btn_scan_of:
-                        httpThread = new HttpThread("POST", "fingerprint/enable", null);
-                        httpThread.start();
+                    case R.id.btn_notifications:
+                        editor.putBoolean("notifications", sw_notifications.isChecked());
+                        editor.commit();
                         break;
-                    case R.id.btn_scan_on:
-                        httpThread = new HttpThread("POST", "fingerprint/disable", null);
-                        httpThread.start();
+                    case R.id.btn_scan:
+                        if(sw_scan.isChecked()) {
+                            httpThread = new HttpThread("POST", "fingerprint/status", null);
+                            httpThread.start();
+                        }else{
+                            httpThread = new HttpThread("DELETE", "fingerprint/status", null);
+                        }
                         break;
                     case R.id.btn_save:
-
-                        SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
-                        SharedPreferences.Editor editor = preferences.edit();
                         String ip =  ed_ip.getText().toString();
                         String port = ed_port.getText().toString();
 
@@ -308,12 +319,63 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
             }
         }
 
+        private void popUp(){
+            try {
+// We need to get the instance of the LayoutInflater
+                LayoutInflater inflater = (LayoutInflater) getActivity()
+                        .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+                View layout = inflater.inflate(R.layout.pop_up_new_finger_print,
+                        (ViewGroup) getActivity().findViewById(R.id.pop_up_element));
+                Log.e("....", "......");
+
+                int width = getActivity().getWindowManager().getDefaultDisplay().getWidth();
+                Log.e("....", " width: "+ width);
+                int heigh = getActivity().getWindowManager().getDefaultDisplay().getWidth();
+                Log.e("....", " height: "+ heigh);
+
+                popupWindow = new PopupWindow(layout, width-20, heigh/2, true);
+
+                popupWindow.showAtLocation(layout, Gravity.CENTER, 0, 0);
+                Button accept = (Button) layout.findViewById(R.id.btn_accept);
+                Button cancel = (Button) layout.findViewById(R.id.btn_cancel);
+                ed_name = (EditText) layout.findViewById(R.id.ed_name);
+                cancel.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    popupWindow.dismiss();
+                }
+                });
+                accept.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        JSONObject j = new JSONObject();
+                        try {
+                            j.put("name", ed_name.getText().toString());
+                            HttpThread thread = new HttpThread("POST", "fingerprint", null);
+                            thread.start();
+                            popupWindow.dismiss();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
+                    }
+                });
+
+
+            } catch (Exception e) {
+               String s = e.toString();
+                Log.e(" dksn ", s);
+            }
+
+        }
+
+
         private class HttpThread extends Thread{
             private String method;
             private JSONObject jsonObject;
             private String url;
             private OutputStream outputStream;
-            private Message message = new Message();
+            private Message message ;
             private HttpThread(String method, String url, JSONObject jsonObject) {
                 this.method = method;
                 this.url = url;
@@ -338,16 +400,18 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
                     outputStream = httpURLConnection.getOutputStream();
                     outputStream.write(jsonObject.toString().getBytes());
                     if(httpURLConnection.getResponseCode() == 200){
+                        message = new Message();
                         message.obj = "received 200";
                         handler.sendMessage(message);
 
                     }else{
+                        message = new Message();
                         message.obj = "received" + httpURLConnection.getResponseCode();
                         handler.sendMessage(message);
                     }
 
                 } catch (IOException e) {
-
+                    message = new Message();
                     message.obj = e.toString();
                     handler.sendMessage(message);
 
