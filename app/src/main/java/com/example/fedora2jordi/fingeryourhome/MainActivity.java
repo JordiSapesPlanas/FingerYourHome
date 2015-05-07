@@ -1,12 +1,21 @@
 package com.example.fedora2jordi.fingeryourhome;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Locale;
 
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.ActionBar;
@@ -25,6 +34,9 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 
 public class MainActivity extends ActionBarActivity implements ActionBar.TabListener {
@@ -112,7 +124,8 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
     public void onTabSelected(ActionBar.Tab tab, FragmentTransaction fragmentTransaction) {
         // When the given tab is selected, switch to the corresponding page in
         // the ViewPager.
-        Log.e("44444", "....");
+
+
         mViewPager.setCurrentItem(tab.getPosition());
     }
 
@@ -180,6 +193,7 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
         EditText ed_ip;
         EditText ed_port;
         Handler handler;
+        HttpThread httpThread;
 
         private static final String ARG_SECTION_NUMBER = "section_number";
 
@@ -205,7 +219,13 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
 
 
             int i = getArguments().getInt(ARG_SECTION_NUMBER);
-
+            handler = new Handler(){
+                @Override
+                public void handleMessage(Message msg) {
+                    String text =(String)msg.obj;
+                    Toast.makeText(getActivity().getApplicationContext(), text, Toast.LENGTH_LONG).show();
+                }
+            };
             View rootView ;
             switch(i){
                 case 1:
@@ -219,6 +239,15 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
                     break;
                 case 3:
                     rootView = inflater.inflate(R.layout.fragment_advanced_options, container, false);
+                    btn_save =(Button) rootView.findViewById(R.id.btn_save);
+                    ed_ip = (EditText)rootView.findViewById(R.id.ed_ip);
+                    ed_port = (EditText)rootView.findViewById(R.id.ed_port);
+                    btn_save.setOnClickListener(this);
+                    SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+                    String ip = preferences.getString("ip", "127.0.0.1");
+                    String port = preferences.getString("port", "3000");
+                    ed_ip.setText(ip);
+                    ed_port.setText(port);
                     break;
                 case 2:
                     rootView = inflater.inflate(R.layout.fragment_users, container, false);
@@ -226,10 +255,7 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
                     break;
                 default:
                     rootView = inflater.inflate(R.layout.fragment_options, container, false);
-                    btn_save =(Button) rootView.findViewById(R.id.btn_save);
-                    ed_ip = (EditText)rootView.findViewById(R.id.ed_ip);
-                    ed_port = (EditText)rootView.findViewById(R.id.ed_port);
-                    btn_save.setOnClickListener(this);
+
                     break;
             }
 
@@ -242,34 +268,90 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
             ConnectivityManager cnManager = (ConnectivityManager)getActivity()
                     .getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo networkInfo = cnManager.getActiveNetworkInfo();
+
             if(networkInfo != null && networkInfo.isConnected())
+
                 switch (view.getId()){
                     case R.id.btn_new_scan:
+                                                httpThread = new HttpThread("POST", "fingerprint", null);
+                        httpThread.start();
                         break;
                     case R.id.btn_scan_of:
+                        httpThread = new HttpThread("POST", "fingerprint/enable", null);
+                        httpThread.start();
                         break;
                     case R.id.btn_scan_on:
+                        httpThread = new HttpThread("POST", "fingerprint/disable", null);
+                        httpThread.start();
                         break;
                     case R.id.btn_save:
 
+                        SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+                        SharedPreferences.Editor editor = preferences.edit();
+                        String ip =  ed_ip.getText().toString();
+                        String port = ed_port.getText().toString();
 
+                        editor.putString("ip", ip);
+                        editor.putString("port", port);
+                        editor.commit();
+                        Toast.makeText(getActivity().getApplicationContext(), "Saved",
+                                Toast.LENGTH_LONG).show();
+                        ed_ip.setText(ip);
+                        ed_port.setText(port);
                         break;
                 }
             else{
-                Toast.makeText(getActivity().getApplicationContext(), "No network, please enable",
+
+
+                Toast.makeText(getActivity().getApplicationContext(), "No network, please be sure that is enabled",
                         Toast.LENGTH_LONG).show();
             }
         }
 
-        private class httpThread extends Thread{
+        private class HttpThread extends Thread{
             private String method;
-            private String ip;
+            private JSONObject jsonObject;
             private String url;
-
-            private httpThread(String method, String ip, String url) {
-                this.ip = ip;
+            private OutputStream outputStream;
+            private Message message = new Message();
+            private HttpThread(String method, String url, JSONObject jsonObject) {
                 this.method = method;
                 this.url = url;
+                this.jsonObject = jsonObject;
+            }
+
+            @Override
+            public void run() {
+                try {
+
+                    SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+                    String ip = preferences.getString("ip", "127.0.0.1");
+                    String port = preferences.getString("port", "3000");
+                    URL ur = new URL("http://"+ip+":"+port+"/"+url);
+                    HttpURLConnection httpURLConnection = (HttpURLConnection) ur.openConnection();
+                    if(method.equals("GET")){
+                        httpURLConnection.setDoOutput(false);
+                    }else{
+                        httpURLConnection.setDoOutput(true);
+                    }
+                    httpURLConnection.setRequestMethod(method);
+                    outputStream = httpURLConnection.getOutputStream();
+                    outputStream.write(jsonObject.toString().getBytes());
+                    if(httpURLConnection.getResponseCode() == 200){
+                        message.obj = "received 200";
+                        handler.sendMessage(message);
+
+                    }else{
+                        message.obj = "received" + httpURLConnection.getResponseCode();
+                        handler.sendMessage(message);
+                    }
+
+                } catch (IOException e) {
+
+                    message.obj = e.toString();
+                    handler.sendMessage(message);
+
+                }
             }
         }
 
